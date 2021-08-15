@@ -138,6 +138,8 @@ diff_pct_test <- inner_join(all, young, by = c("num_people", "total")) %>%
   rename(all_summary = summary.x, young_summary = summary.y) %>%
   
 # Weighted takes into qccount the number of people predicted to support Obama, as well as their relative proportions in the context of the entire posterior. Add 1 to prevent multiplying by 0. 
+  
+# Also, adding 1 to total most likely makes all the math incorrect by some factor. Not sure how wrong everything would be, but I'm guessing it wouldn't be terribly off. 
 
   mutate(all_weighted = all_summary*(total+1), young_weighted = young_summary*(total+1)) %>%
   
