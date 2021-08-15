@@ -1,0 +1,188 @@
+---
+title: "obama-testing"
+author: "Ryan Southward"
+date: "8/13/2021"
+output: html_document
+---
+
+Goal of Tutorial:
+- Analyze 2 surveys: The first being the 2009 Harvard Survey that concluded that 58% of Americans ages 18-29 approved of Obama's performance from Nov. 4 - Nov. 16, 2009, and the second being daily Gallup telephone polls, for which 53% of ALL adult Americans surveyed between Nov. 9 and Nov. 16 approved of Obama's Performance
+
+https://news.gallup.com/poll/116479/barack-obama-presidential-job-approval.aspx (Gallup Poll)
+
+* w/ the Gallup Poll, not completely sure to address the large difference between weeks. Some weeks are like 54%, others like 48%. Not sure if this volatility is b/c Obama pissed some people off for a week, or poor sampling.  
+
+* Also, in general I'm not sure about how to deal with non opinions. If you exclude them then the proportion becomes higher. Considering non-opinions to be nos does not seem like the right solution either though. At this point i'm entering them as 0's so the proportion adds up to 1. 
+
+Parts of the Tutorial:
+
+1. 
+- Overview of surveys in general, explain how they are the most important example of binomial distributions. 
+- Include snapshots of study results and sampling methodology. Discuss non-opinions, and overall reliability of sampling methods used to determine representaveness of samples (For both polls). Relate to Wisdom/Justice concepts. 
+
+2. 
+- Answer the question: What is the percentage of Americans aged 18-29 who approved of Obama in 2009? and What percentage of all Americans approved of Obama in 2009? Do this by creating the posteriors, and at end we'll graph them together to compare them. Mostly just coding in this section, maybe add one paragraph response at the end for students to answer the questions in their own words using the posterior. 
+
+3. 
+- Answer the question: In 2009, if there were two rooms of the same size, one filled with all American adults, and one filled with just 18-29 year olds, what is the probability that the rooms will have the same number of people who approve of Obama?
+- Break down the question. Get students to realize that the answer depends on the room size. 
+- Attempt to answer the question. 
+
+4. (Maybe, not sure if I'll do this yet)
+- Discuss the 95% Confidence Interval of the survey. You can calculate this very simply sqrt(p(1-p)/n), or by calculating standard deviation of the posterior. Want to use Confidence Intervals/SE more. 
+
+Part 2:
+
+```{r setup, include = FALSE}
+library(learnr)
+library(primer.tutorials)
+library(tidyverse)
+library(primer.data)
+library(rstanarm)
+
+
+# In Harvard Survey, 58% approve of Obama, out of 2087 respondants. 39% Disapproved. 
+
+harvard_data <- tibble(approve = c(rep(1, round(.58*2087)), rep(0, round(.42*2087))))
+
+harv_fit <- stan_glm(data = harvard_data,
+                    refresh = 0,
+                    seed = 2012, 
+                    family = binomial,
+                    formula = approve ~ 1,
+                    iter = 10000) 
+
+ob_harv_ppd <- posterior_epred(harv_fit, 
+                          newdata = tibble(constant = 1)) %>%
+  as_tibble() %>%
+  rename(approval = `1`) 
+
+# In Gallup Survey, 53% approve of Obama, out of 1500 respondants. 39% Disapproved. 
+
+gallup_data <- tibble(approve = c(rep(1, round(.53*1500)), rep(0, round(.47*1500))))
+
+gal_fit <- stan_glm(data = gallup_data,
+                    refresh = 0,
+                    seed = 2012, 
+                    family = binomial,
+                    formula = approve ~ 1,
+                    iter = 10000) 
+
+ob_gal_ppd <- posterior_epred(gal_fit, 
+                          newdata = tibble(constant = 1)) %>%
+  as_tibble() %>%
+  rename(approval = `1`) 
+
+```
+
+Harvard Posterior:
+
+```{r}
+ob_harv_ppd %>%
+  ggplot(aes(x = approval)) +
+  geom_histogram(aes(y = after_stat(count/sum(count))),
+                   bins = 50) +
+  scale_x_continuous(labels = scales::number_format()) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_classic()
+
+```
+
+Gallup Posterior: 
+
+```{r}
+ob_gal_ppd %>%
+  ggplot(aes(x = approval)) +
+  geom_histogram(aes(y = after_stat(count/sum(count))),
+                   bins = 50) +
+  scale_x_continuous(labels = scales::number_format()) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_classic()
+```
+
+Plotted together: 
+
+```{r}
+bind_rows(ob_harv_ppd %>% mutate(study = "harvard"), ob_gal_ppd %>% mutate(study = "gallup")) %>%
+  ggplot(aes(x = approval, fill = study)) +
+  geom_histogram(aes(y = after_stat(count/sum(count))),
+                   bins = 50, alpha = .5, position = "identity") + 
+  scale_fill_manual(values = c("red", "blue"))+
+  scale_x_continuous(labels = scales::number_format()) +
+  scale_y_continuous(labels = scales::percent_format())
+```
+Part 3:
+
+```{r}
+# Create 20 posterior_predicts(), each for a number of people between 1 and 20. 
+
+young <- tibble(num_people = 1:20) %>%
+  mutate(predictions = map(num_people, ~ posterior_predict(harv_fit, newdata = tibble(constant = rep(1, .))))) %>%
+  mutate(total = map(predictions, ~ rowSums(.))) %>%
+  unnest(total) %>%
+  group_by(num_people, total) %>%
+  summarize(summary = n(), .groups = "drop") 
+
+# Create 20 posterior_predicts(), each for a number of people between 1 and 20. Only difference from above is that we use the fit for the gallup poll instead of harvard. 
+
+all <- tibble(num_people = 1:20) %>%
+  mutate(predictions = map(num_people, ~ posterior_predict(gal_fit, newdata = tibble(constant = rep(1, .))))) %>%
+  mutate(total = map(predictions, ~ rowSums(.))) %>%
+  unnest(total) %>%
+  group_by(num_people, total) %>%
+  summarize(summary = n(), .groups = "drop")
+
+
+
+diff_pct_test <- inner_join(all, young, by = c("num_people", "total")) %>%
+  rename(all_summary = summary.x, young_summary = summary.y) %>%
+  
+# Weighted takes into qccount the number of people predicted to support Obama, as well as their relative proportions in the context of the entire posterior. Add 1 to prevent multiplying by 0. 
+
+  mutate(all_weighted = all_summary*(total+1), young_weighted = young_summary*(total+1)) %>%
+  
+# Find the maximum weighted value for each possible number of obama supporters in each room size. 
+  
+  rowwise() %>%
+  mutate(max = max(c_across(c("all_weighted", "young_weighted")))) %>%
+  ungroup() %>%
+  
+# Find the number of people who are different in the two rooms. 
+  
+  mutate(diff = abs(all_weighted - young_weighted)) %>%
+  
+# For each possible number of supporters in the room, essentially divide the "more different" room by the "less different" room. Subtract from 1 to make it the probability of the rooms being the same. If the rooms are identical, this value will be 1. The more differences, the greater descreptency between each possible number of supporters for each room size, and this percent becomes closer to 0. 
+  
+  mutate(pct = 1 - (diff/max)) %>%
+  
+# Number of people who are Obamba supporters are independent, so multiply all the probabliities to get the answer. 
+  
+  group_by(num_people) %>%
+  summarize(prob_rooms_are_same = round(prod(pct), digits = 6))
+
+
+diff_pct_test %>%
+  ggplot(aes(x = num_people, y = prob_rooms_are_same)) + 
+  geom_point()
+  
+```
+
+Each point represents the probability of two rooms having an identical number of people who approve of Obama, with one room filled with all adult Americans, and one filled with 18-29 year old Americans. 
+
+```{r}
+visualization <- inner_join(all, young, by = c("num_people", "total")) %>%
+  rename(all_summary = summary.x, young_summary = summary.y) %>%
+  mutate(all_weighted = all_summary*(total+1), young_weighted = young_summary*(total+1)) %>%
+  pivot_longer(names_to = "group", values_to = "summary", cols = 3:4) %>%
+  select(-c(all_weighted, young_weighted))
+
+visualization %>%
+  ggplot(aes(x = total, y = summary, fill = group)) + 
+  facet_wrap(~num_people) +
+  geom_col(position = "identity", alpha = .5)
+
+```
+
+
+As you increase the number of people, you see more difference between the 2 groups.
+
