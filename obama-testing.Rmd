@@ -34,12 +34,8 @@ Parts of the Tutorial:
 Part 2:
 
 ```{r setup, include = FALSE}
-library(learnr)
-library(primer.tutorials)
 library(tidyverse)
-library(primer.data)
 library(rstanarm)
-
 
 # In Harvard Survey, 58% approve of Obama, out of 2087 respondants. 39% Disapproved. 
 
