@@ -137,27 +137,21 @@ all <- tibble(num_people = 1:20) %>%
 diff_pct_test <- inner_join(all, young, by = c("num_people", "total")) %>%
   rename(all_summary = summary.x, young_summary = summary.y) %>%
   
-# Weighted takes into qccount the number of people predicted to support Obama, as well as their relative proportions in the context of the entire posterior. Add 1 to prevent multiplying by 0. 
-  
-# Also, adding 1 to total most likely makes all the math incorrect by some factor. Not sure how wrong everything would be, but I'm guessing it wouldn't be terribly off. 
-
-  mutate(all_weighted = all_summary*(total+1), young_weighted = young_summary*(total+1)) %>%
-  
 # Find the maximum weighted value for each possible number of obama supporters in each room size. 
   
   rowwise() %>%
-  mutate(max = max(c_across(c("all_weighted", "young_weighted")))) %>%
+  mutate(max = max(c_across(c("all_summary", "young_summary")))) %>%
   ungroup() %>%
   
 # Find the number of people who are different in the two rooms. 
   
-  mutate(diff = abs(all_weighted - young_weighted)) %>%
+  mutate(diff = abs(all_summary - young_summary)) %>%
   
 # For each possible number of supporters in the room, essentially divide the "more different" room by the "less different" room. Subtract from 1 to make it the probability of the rooms being the same. If the rooms are identical, this value will be 1. The more differences, the greater descreptency between each possible number of supporters for each room size, and this percent becomes closer to 0. 
   
   mutate(pct = 1 - (diff/max)) %>%
   
-# Number of people who are Obamba supporters are independent, so multiply all the probabliities to get the answer. 
+# Number of people who are Obamba supporters are independent, so multiply all the probabilities to get the answer.
   
   group_by(num_people) %>%
   summarize(prob_rooms_are_same = round(prod(pct), digits = 6))
@@ -174,9 +168,7 @@ Each point represents the probability of two rooms having an identical number of
 ```{r}
 visualization <- inner_join(all, young, by = c("num_people", "total")) %>%
   rename(all_summary = summary.x, young_summary = summary.y) %>%
-  mutate(all_weighted = all_summary*(total+1), young_weighted = young_summary*(total+1)) %>%
-  pivot_longer(names_to = "group", values_to = "summary", cols = 3:4) %>%
-  select(-c(all_weighted, young_weighted))
+  pivot_longer(names_to = "group", values_to = "summary", cols = 3:4)
 
 visualization %>%
   ggplot(aes(x = total, y = summary, fill = group)) + 
