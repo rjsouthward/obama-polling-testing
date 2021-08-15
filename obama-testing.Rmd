@@ -29,7 +29,7 @@ Parts of the Tutorial:
 - Attempt to answer the question. 
 
 4. (Maybe, not sure if I'll do this yet)
-- Discuss the 95% Confidence Interval of the survey. You can calculate this very simply sqrt(p(1-p)/n), or by calculating standard deviation of the posterior. Want to use Confidence Intervals/SE more. 
+- Discuss the 95% Confidence Interval of the survey. You can calculate this very simply sqrt(p(1-p)/n), or by calculating standard deviation of the posterior. Want to use Confidence Intervals/SE more. Also maybe discuss if it is possible for the 2 populations to have the same % of people who approve (although this sounds like hypothesis testing that we don't want to do.)
 
 Part 2:
 
